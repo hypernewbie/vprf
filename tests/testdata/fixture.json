@@ -1,0 +1,75 @@
+{
+  "meta": {
+    "interval": 1,
+    "product": "fixture-app",
+    "arguments": "fixture-app --demo",
+    "startTime": 0,
+    "endTime": 4000
+  },
+  "libs": [
+    { "name": "fixture-app", "path": "/tmp/fixture-app", "arch": "x86_64" }
+  ],
+  "shared": {
+    "stackTable": {
+      "frame": [0, 1, 2, 0, 3],
+      "prefix": [null, 0, 1, null, 3],
+      "length": 5
+    },
+    "frameTable": {
+      "func": [0, 1, 2, 0, 3],
+      "nativeSymbol": [0, 1, 2, 0, 3],
+      "line": [1, 10, 20, 1, 30],
+      "column": [1, 1, 1, 1, 1],
+      "length": 5
+    },
+    "funcTable": {
+      "name": [0, 1, 2, 3],
+      "resource": [0, 0, 0, 0],
+      "length": 4
+    },
+    "resourceTable": {
+      "lib": [0],
+      "name": [4],
+      "type": [1],
+      "length": 1
+    },
+    "nativeSymbols": {
+      "libIndex": [0, 0, 0, 0],
+      "name": [0, 1, 2, 3],
+      "length": 4
+    },
+    "stringArray": [
+      "main",
+      "outer",
+      "innerLoop",
+      "workerFn",
+      "fixture-app"
+    ]
+  },
+  "threads": [
+    {
+      "name": "main",
+      "pid": "100",
+      "tid": 1001,
+      "samples": {
+        "stack": [2, 2, 2, 1],
+        "time": [0, 1000, 2000, 3000],
+        "weight": [5, 5, 5, 2],
+        "weightType": "samples",
+        "length": 4
+      }
+    },
+    {
+      "name": "worker",
+      "pid": "100",
+      "tid": 1002,
+      "samples": {
+        "stack": [4, 4],
+        "time": [500, 2500],
+        "weight": [2, 2],
+        "weightType": "samples",
+        "length": 2
+      }
+    }
+  ]
+}

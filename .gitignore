@@ -1,0 +1,19 @@
+# vprf
+*.json.gz
+*.syms.json
+vprf
+profile.json.gz
+
+# Go
+*.exe
+*.test
+*.out
+coverage.txt
+
+# OS
+.DS_Store
+*.swp
+*.swo
+
+# samply
+ Samply.profile/
