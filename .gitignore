@@ -17,3 +17,6 @@ coverage.txt
 
 # samply
  Samply.profile/
+
+# tmp
+tmp/

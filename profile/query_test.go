@@ -22,12 +22,12 @@ func TestLoadAndQueryFixture(t *testing.T) {
 		t.Fatalf("expected innerLoop hottest, got %#v", stats)
 	}
 
-	callers := p.CallersOf("innerLoop", threads, 10)
+	callers, _ := p.CallersOf("innerLoop", threads, 10)
 	if len(callers) == 0 || callers[0].Path[0] != "outer" {
 		t.Fatalf("expected outer -> innerLoop caller path, got %#v", callers)
 	}
 
-	callees := p.CalleesOf("outer", threads, 10)
+	callees, _ := p.CalleesOf("outer", threads, 10)
 	if len(callees) == 0 || callees[0].Path[1] != "innerLoop" {
 		t.Fatalf("expected outer -> innerLoop callee path, got %#v", callees)
 	}

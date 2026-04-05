@@ -6,6 +6,54 @@ import (
 	"strings"
 )
 
+var idlePatterns = []string{
+	"__psynch_cvwait",
+	"__semwait_signal",
+	"_pthread_cond_wait",
+	"__psynch_mutexwait",
+	"__psynch_cvsignal",
+	"__psynch_cvsignal",
+	"usleep",
+	"nanosleep",
+	"kevent",
+	"mach_msg_trap",
+	"__select",
+	"__wait4",
+	"__workq_kernreturn",
+	"__ulock_wait",
+	"_sigtramp",
+	"poll",
+	"epoll_wait",
+	"futex",
+	"runtime.pthread_cond_wait_trampoline",
+	"runtime.usleep_trampoline",
+	"runtime.pthread_cond_signal_trampoline",
+	"runtime.pthread_kill_trampoline",
+	"runtime.wakep",
+	"runtime.startm",
+	"runtime.notewakeup",
+	"runtime.libcCall",
+	"runtime.asmcgocall",
+	"runtime.madvise_trampoline",
+	"runtime.gopreempt_m",
+	"runtime.goschedImpl",
+	"runtime.sigtramp",
+	"runtime.sigtrampgo",
+	"runtime.sigFetchG",
+	"mach_absolute_time",
+	"_platform_memset",
+}
+
+func isIdleFunction(name string) bool {
+	lower := strings.ToLower(name)
+	for _, pattern := range idlePatterns {
+		if strings.Contains(lower, strings.ToLower(pattern)) {
+			return true
+		}
+	}
+	return false
+}
+
 type resolvedFrame struct {
 	Function string
 	Module   string
@@ -40,8 +88,11 @@ func (p *Profile) Summary(threads []ThreadView) Summary {
 		hottest = threadStats[0]
 	}
 	top := FunctionStat{}
-	if len(stats) > 0 {
-		top = stats[0]
+	for _, stat := range stats {
+		if !isIdleFunction(stat.Name) {
+			top = stat
+			break
+		}
 	}
 	return Summary{
 		ProfileName:     p.profileName(),
@@ -99,17 +150,23 @@ func (p *Profile) TopFunctions(threads []ThreadView) []FunctionStat {
 	return stats
 }
 
-func (p *Profile) CallersOf(function string, threads []ThreadView, limit int) []EdgeStat {
+func (p *Profile) CallersOf(function string, threads []ThreadView, limit int) ([]EdgeStat, []string) {
 	return p.edgeStats(function, threads, limit, true)
 }
 
-func (p *Profile) CalleesOf(function string, threads []ThreadView, limit int) []EdgeStat {
+func (p *Profile) CalleesOf(function string, threads []ThreadView, limit int) ([]EdgeStat, []string) {
 	return p.edgeStats(function, threads, limit, false)
 }
 
-func (p *Profile) edgeStats(function string, threads []ThreadView, limit int, callers bool) []EdgeStat {
+func (p *Profile) edgeStats(function string, threads []ThreadView, limit int, callers bool) ([]EdgeStat, []string) {
 	totalSamples := totalSamplesForThreads(threads)
 	counts := map[string]*EdgeStat{}
+
+	matchedFn := matchFunctionFamily(function, p, threads)
+	if len(matchedFn) == 0 {
+		return nil, nil
+	}
+
 	for _, tv := range threads {
 		ctx := p.lookupContext(tv.Thread)
 		for idx, stackIdx := range tv.Thread.Samples.Stack {
@@ -119,21 +176,21 @@ func (p *Profile) edgeStats(function string, threads []ThreadView, limit int, ca
 			}
 			frames := p.resolveStack(ctx, *stackIdx)
 			for i, frame := range frames {
-				if frame.Function != function {
+				if !matchedFn[frame.Function] {
 					continue
 				}
 				var path []string
 				if callers {
 					if i == 0 {
-						path = []string{"[root]", function}
+						path = []string{"[root]", frame.Function}
 					} else {
-						path = []string{frames[i-1].Function, function}
+						path = []string{frames[i-1].Function, frame.Function}
 					}
 				} else {
 					if i == len(frames)-1 {
 						continue
 					}
-					path = []string{function, frames[i+1].Function}
+					path = []string{frame.Function, frames[i+1].Function}
 				}
 				key := strings.Join(path, "\x00")
 				stat := counts[key]
@@ -159,7 +216,36 @@ func (p *Profile) edgeStats(function string, threads []ThreadView, limit int, ca
 	if limit > 0 && len(stats) > limit {
 		stats = stats[:limit]
 	}
-	return stats
+	matchedFnList := make([]string, 0, len(matchedFn))
+	for fn := range matchedFn {
+		matchedFnList = append(matchedFnList, fn)
+	}
+	return stats, matchedFnList
+}
+
+func matchFunctionFamily(pattern string, p *Profile, threads []ThreadView) map[string]bool {
+	lower := strings.ToLower(pattern)
+	matched := map[string]bool{}
+	seen := map[string]bool{}
+	for _, tv := range threads {
+		ctx := p.lookupContext(tv.Thread)
+		for _, stackIdx := range tv.Thread.Samples.Stack {
+			if stackIdx == nil {
+				continue
+			}
+			frames := p.resolveStack(ctx, *stackIdx)
+			for _, frame := range frames {
+				if seen[frame.Function] {
+					continue
+				}
+				seen[frame.Function] = true
+				if strings.Contains(strings.ToLower(frame.Function), lower) {
+					matched[frame.Function] = true
+				}
+			}
+		}
+	}
+	return matched
 }
 
 func (p *Profile) ThreadStats(threads []ThreadView) []ThreadStat {
@@ -301,6 +387,18 @@ func (p *Profile) resolveFrame(ctx lookupContext, frameIdx int) resolvedFrame {
 			name = resolved
 		}
 	}
+	if looksLikeAddress(name) && nativeSymbol != nil {
+		idx := *nativeSymbol
+		if idx >= 0 && idx < len(ctx.nativeSymbols.Name) {
+			nsIdx := ctx.nativeSymbols.Name[idx]
+			if nsIdx >= 0 && nsIdx < len(ctx.stringArray) {
+				nsName := ctx.stringArray[nsIdx]
+				if !looksLikeAddress(nsName) {
+					name = nsName
+				}
+			}
+		}
+	}
 	return resolvedFrame{Function: name, Module: module}
 }
 
@@ -344,18 +442,25 @@ func (p *Profile) lookupModule(ctx lookupContext, funcIdx int, nativeSymbol *int
 }
 
 func attachSidecarSymbols(p *Profile, sidecar *SymbolSidecar) {
-	resolver := &SidecarResolver{ByLib: map[string]map[int]string{}}
+	byLib := map[string]map[int]string{}
+	byLibSorted := map[string][]SidecarSymbolEntry{}
 	for _, lib := range sidecar.Data {
 		name := normalizeLibName(lib.DebugName)
-		if _, ok := resolver.ByLib[name]; !ok {
-			resolver.ByLib[name] = map[int]string{}
+		if _, ok := byLib[name]; !ok {
+			byLib[name] = map[int]string{}
+			byLibSorted[name] = []SidecarSymbolEntry{}
 		}
 		for _, entry := range lib.SymbolTable {
 			funcName := lookupSidecarFunctionName(sidecar.StringTable, entry)
 			if funcName == "" {
 				continue
 			}
-			resolver.ByLib[name][entry.RVA] = funcName
+			byLib[name][entry.RVA] = funcName
+			byLibSorted[name] = append(byLibSorted[name], SidecarSymbolEntry{
+				RVA:  entry.RVA,
+				Size: entry.Size,
+				Name: funcName,
+			})
 		}
 		for _, known := range lib.KnownAddresses {
 			if len(known) != 2 {
@@ -370,10 +475,18 @@ func attachSidecarSymbols(p *Profile, sidecar *SymbolSidecar) {
 			if funcName == "" {
 				continue
 			}
-			resolver.ByLib[name][addr] = funcName
+			byLib[name][addr] = funcName
+			byLibSorted[name] = append(byLibSorted[name], SidecarSymbolEntry{
+				RVA:  addr,
+				Size: 0,
+				Name: funcName,
+			})
 		}
 	}
-	p.Resolver = resolver
+	for _, entries := range byLibSorted {
+		sort.Slice(entries, func(i, j int) bool { return entries[i].RVA < entries[j].RVA })
+	}
+	p.Resolver = &SidecarResolver{ByLib: byLib, ByLibSorted: byLibSorted}
 }
 
 func lookupSidecarFunctionName(strings []string, symbol SidecarSymbol) string {
@@ -424,6 +537,13 @@ func (p *Profile) lookupSidecarName(ctx lookupContext, module string, nativeSymb
 	}
 	if symbol, ok := addresses[addr]; ok {
 		return symbol
+	}
+	entries := ctx.resolver.ByLibSorted[normalizeLibName(module)]
+	if len(entries) > 0 {
+		idx := sort.Search(len(entries), func(i int) bool { return entries[i].RVA > addr }) - 1
+		if idx >= 0 && entries[idx].RVA <= addr && addr < entries[idx].RVA+entries[idx].Size && entries[idx].Size > 0 {
+			return entries[idx].Name
+		}
 	}
 	return ""
 }

@@ -14,6 +14,7 @@ func runRecord(args []string, stdout io.Writer, stderr io.Writer) error {
 	fs := flag.NewFlagSet("record", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	outputPath := fs.String("output", "profile.json.gz", "Output profile path")
+	fs.StringVar(outputPath, "o", "profile.json.gz", "Output profile path")
 	duration := fs.Float64("duration", 0, "Optional duration in seconds")
 	rate := fs.Float64("rate", 1000, "Sampling rate in Hz")
 	if err := fs.Parse(args); err != nil {

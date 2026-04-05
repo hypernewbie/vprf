@@ -27,7 +27,14 @@ type SidecarInlineFrame struct {
 }
 
 type SidecarResolver struct {
-	ByLib map[string]map[int]string
+	ByLib       map[string]map[int]string       // exact address → name lookup
+	ByLibSorted map[string][]SidecarSymbolEntry // sorted by RVA for range search
+}
+
+type SidecarSymbolEntry struct {
+	RVA  int
+	Size int
+	Name string
 }
 
 type Profile struct {
