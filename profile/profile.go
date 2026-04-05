@@ -38,11 +38,12 @@ type SidecarSymbolEntry struct {
 }
 
 type Profile struct {
-	Meta     Meta             `json:"meta"`
-	Libs     []Lib            `json:"libs"`
-	Shared   SharedData       `json:"shared"`
-	Threads  []Thread         `json:"threads"`
-	Resolver *SidecarResolver `json:"-"`
+	Meta          Meta             `json:"meta"`
+	Libs          []Lib            `json:"libs"`
+	Shared        SharedData       `json:"shared"`
+	Threads       []Thread         `json:"threads"`
+	Resolver      *SidecarResolver `json:"-"`
+	FunctionNames map[string]bool  `json:"-"`
 }
 
 type Meta struct {
@@ -167,4 +168,22 @@ type Summary struct {
 	ThreadCount     int          `json:"thread_count"`
 	HottestThread   ThreadStat   `json:"hottest_thread"`
 	TopFunction     FunctionStat `json:"top_function"`
+}
+
+type DiffStat struct {
+	Name           string  `json:"name"`
+	Module         string  `json:"module"`
+	SelfA          int     `json:"self_a"`
+	SelfB          int     `json:"self_b"`
+	DeltaSelf      int     `json:"delta_self"`
+	TotalA         int     `json:"total_a"`
+	TotalB         int     `json:"total_b"`
+	DeltaTotal     int     `json:"delta_total"`
+	PctChangeSelf  float64 `json:"pct_change_self"`
+	PctChangeTotal float64 `json:"pct_change_total"`
+}
+
+type CollapsedStack struct {
+	Stack string `json:"stack"`
+	Count int    `json:"count"`
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/hypernewbie/vprf/output"
 	"github.com/hypernewbie/vprf/profile"
@@ -25,6 +26,8 @@ var commands = []command{
 	{name: "callees", run: runCallees, desc: "Show callees of a function"},
 	{name: "threads", run: runThreads, desc: "Show per-thread sample counts"},
 	{name: "hotpath", run: runHotpath, desc: "Show hottest call paths"},
+	{name: "diff", run: runDiff, desc: "Compare two profiles"},
+	{name: "collapsed", run: runCollapsed, desc: "Output collapsed stacks for flamegraph generation"},
 }
 
 func Execute(args []string, stdout io.Writer, stderr io.Writer) error {
@@ -76,7 +79,7 @@ func addProfileFlags(fs *flag.FlagSet, opts *profileOptions) {
 	fs.StringVar(&opts.thread, "thread", "", "Filter by thread name or tid")
 	fs.IntVar(&opts.limit, "limit", 10, "Maximum rows to return")
 	fs.StringVar(&opts.sortBy, "sort", "self", "Sort field: self or total")
-	fs.StringVar(&opts.function, "fn", "", "Function name to query")
+	fs.StringVar(&opts.function, "fn", "", "Regex pattern to match function names")
 }
 
 func loadProfile(opts profileOptions) (*profile.Profile, error) {
@@ -96,8 +99,9 @@ func selectedThreads(p *profile.Profile, threadFilter string) []profile.ThreadVi
 		return threads
 	}
 	filtered := make([]profile.ThreadView, 0, len(threads))
+	lower := strings.ToLower(threadFilter)
 	for _, tv := range threads {
-		if tv.Name == threadFilter || tv.TID == threadFilter {
+		if strings.Contains(strings.ToLower(tv.Name), lower) || tv.TID == threadFilter {
 			filtered = append(filtered, tv)
 		}
 	}

@@ -16,7 +16,7 @@ coverage.txt
 *.swo
 
 # samply
- Samply.profile/
+Samply.profile/
 
 # tmp
 tmp/

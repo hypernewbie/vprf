@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-
-	"github.com/hypernewbie/vprf/profile"
 )
 
 func runSummary(args []string, stdout io.Writer, stderr io.Writer) error {
@@ -35,5 +33,3 @@ func runSummary(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 	return nil
 }
-
-var _ = profile.Profile{}

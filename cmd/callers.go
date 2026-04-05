@@ -36,15 +36,19 @@ func runEdges(name string, args []string, stdout io.Writer, stderr io.Writer, qu
 	if err != nil {
 		return err
 	}
-	stats, matchedFns := query(p, selectedThreads(p, opts.thread), opts.function, opts.limit)
 
-	if len(stats) == 0 && len(matchedFns) == 0 {
+	matchedFns, err := p.MatchFunctions(opts.function, selectedThreads(p, opts.thread))
+	if err != nil {
+		return err
+	}
+	if len(matchedFns) == 0 {
 		return fmt.Errorf("no functions matching %q found", opts.function)
 	}
 	if len(matchedFns) > 1 {
 		fmt.Fprintf(stderr, "note: matched functions: %s\n", strings.Join(matchedFns, ", "))
 	}
 
+	stats, _ := query(p, selectedThreads(p, opts.thread), opts.function, opts.limit)
 	rows := make([][]string, 0, len(stats))
 	for _, stat := range stats {
 		rows = append(rows, []string{
@@ -55,5 +59,3 @@ func runEdges(name string, args []string, stdout io.Writer, stderr io.Writer, qu
 	}
 	return writeRows(stdout, opts.format, []string{"samples", "percent", name}, rows, stats)
 }
-
-var _ = profile.EdgeStat{}

@@ -2,6 +2,8 @@ package profile
 
 import (
 	"fmt"
+	"math"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -11,7 +13,6 @@ var idlePatterns = []string{
 	"__semwait_signal",
 	"_pthread_cond_wait",
 	"__psynch_mutexwait",
-	"__psynch_cvsignal",
 	"__psynch_cvsignal",
 	"usleep",
 	"nanosleep",
@@ -77,6 +78,37 @@ func (p *Profile) ThreadViews() []ThreadView {
 		})
 	}
 	return views
+}
+
+func (p *Profile) buildFunctionNameIndex() {
+	p.FunctionNames = map[string]bool{}
+	for _, tv := range p.ThreadViews() {
+		ctx := p.lookupContext(tv.Thread)
+		for _, stackIdx := range tv.Thread.Samples.Stack {
+			if stackIdx == nil {
+				continue
+			}
+			frames := p.resolveStack(ctx, *stackIdx)
+			for _, frame := range frames {
+				p.FunctionNames[frame.Function] = true
+			}
+		}
+	}
+}
+
+func (p *Profile) MatchFunctions(pattern string, threads []ThreadView) ([]string, error) {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("invalid regex pattern %q: %w", pattern, err)
+	}
+	matched := make([]string, 0)
+	for name := range p.FunctionNames {
+		if re.MatchString(name) {
+			matched = append(matched, name)
+		}
+	}
+	sort.Strings(matched)
+	return matched, nil
 }
 
 func (p *Profile) Summary(threads []ThreadView) Summary {
@@ -159,10 +191,19 @@ func (p *Profile) CalleesOf(function string, threads []ThreadView, limit int) ([
 }
 
 func (p *Profile) edgeStats(function string, threads []ThreadView, limit int, callers bool) ([]EdgeStat, []string) {
+	re, err := regexp.Compile(function)
+	if err != nil {
+		return nil, nil
+	}
 	totalSamples := totalSamplesForThreads(threads)
 	counts := map[string]*EdgeStat{}
 
-	matchedFn := matchFunctionFamily(function, p, threads)
+	matchedFn := map[string]bool{}
+	for name := range p.FunctionNames {
+		if re.MatchString(name) {
+			matchedFn[name] = true
+		}
+	}
 	if len(matchedFn) == 0 {
 		return nil, nil
 	}
@@ -223,31 +264,6 @@ func (p *Profile) edgeStats(function string, threads []ThreadView, limit int, ca
 	return stats, matchedFnList
 }
 
-func matchFunctionFamily(pattern string, p *Profile, threads []ThreadView) map[string]bool {
-	lower := strings.ToLower(pattern)
-	matched := map[string]bool{}
-	seen := map[string]bool{}
-	for _, tv := range threads {
-		ctx := p.lookupContext(tv.Thread)
-		for _, stackIdx := range tv.Thread.Samples.Stack {
-			if stackIdx == nil {
-				continue
-			}
-			frames := p.resolveStack(ctx, *stackIdx)
-			for _, frame := range frames {
-				if seen[frame.Function] {
-					continue
-				}
-				seen[frame.Function] = true
-				if strings.Contains(strings.ToLower(frame.Function), lower) {
-					matched[frame.Function] = true
-				}
-			}
-		}
-	}
-	return matched
-}
-
 func (p *Profile) ThreadStats(threads []ThreadView) []ThreadStat {
 	total := totalSamplesForThreads(threads)
 	stats := make([]ThreadStat, 0, len(threads))
@@ -303,6 +319,105 @@ func (p *Profile) HotPaths(threads []ThreadView, limit int) []HotPath {
 		paths = paths[:limit]
 	}
 	return paths
+}
+
+func (p *Profile) CollapsedStacks(threads []ThreadView) []CollapsedStack {
+	counts := map[string]int{}
+	for _, tv := range threads {
+		ctx := p.lookupContext(tv.Thread)
+		for idx, stackIdx := range tv.Thread.Samples.Stack {
+			weight := sampleWeight(tv.Thread.Samples, idx)
+			if stackIdx == nil || weight == 0 {
+				continue
+			}
+			frames := p.resolveStack(ctx, *stackIdx)
+			if len(frames) == 0 {
+				continue
+			}
+			functions := make([]string, 0, len(frames))
+			for _, frame := range frames {
+				functions = append(functions, frame.Function)
+			}
+			key := strings.Join(functions, ";")
+			counts[key] += weight
+		}
+	}
+	stacks := make([]CollapsedStack, 0, len(counts))
+	for stack, count := range counts {
+		stacks = append(stacks, CollapsedStack{Stack: stack, Count: count})
+	}
+	sort.SliceStable(stacks, func(i, j int) bool {
+		if stacks[i].Count == stacks[j].Count {
+			return stacks[i].Stack < stacks[j].Stack
+		}
+		return stacks[i].Count > stacks[j].Count
+	})
+	return stacks
+}
+
+func (p *Profile) DiffProfiles(other *Profile, threadsA, threadsB []ThreadView) []DiffStat {
+	statsA := p.TopFunctions(threadsA)
+	statsB := other.TopFunctions(threadsB)
+	mapA := map[string]FunctionStat{}
+	for _, s := range statsA {
+		mapA[s.Name] = s
+	}
+	mapB := map[string]FunctionStat{}
+	for _, s := range statsB {
+		mapB[s.Name] = s
+	}
+
+	allNames := make(map[string]bool)
+	for name := range mapA {
+		allNames[name] = true
+	}
+	for name := range mapB {
+		allNames[name] = true
+	}
+
+	diffs := make([]DiffStat, 0, len(allNames))
+	for name := range allNames {
+		a := mapA[name]
+		b := mapB[name]
+		module := a.Module
+		if b.Module != "" {
+			module = b.Module
+		}
+		var pctChangeSelf, pctChangeTotal float64
+		if a.SelfSamples > 0 {
+			pctChangeSelf = float64(b.SelfSamples-a.SelfSamples) * 100 / float64(a.SelfSamples)
+		}
+		if a.TotalSamples > 0 {
+			pctChangeTotal = float64(b.TotalSamples-a.TotalSamples) * 100 / float64(a.TotalSamples)
+		}
+		diffs = append(diffs, DiffStat{
+			Name:           name,
+			Module:         module,
+			SelfA:          a.SelfSamples,
+			SelfB:          b.SelfSamples,
+			DeltaSelf:      b.SelfSamples - a.SelfSamples,
+			TotalA:         a.TotalSamples,
+			TotalB:         b.TotalSamples,
+			DeltaTotal:     b.TotalSamples - a.TotalSamples,
+			PctChangeSelf:  math.Round(pctChangeSelf*100) / 100,
+			PctChangeTotal: math.Round(pctChangeTotal*100) / 100,
+		})
+	}
+	sort.SliceStable(diffs, func(i, j int) bool {
+		di := diffs[i].DeltaSelf
+		if di < 0 {
+			di = -di
+		}
+		dj := diffs[j].DeltaSelf
+		if dj < 0 {
+			dj = -dj
+		}
+		if di == dj {
+			return diffs[i].Name < diffs[j].Name
+		}
+		return di > dj
+	})
+	return diffs
 }
 
 type lookupContext struct {
@@ -483,8 +598,9 @@ func attachSidecarSymbols(p *Profile, sidecar *SymbolSidecar) {
 			})
 		}
 	}
-	for _, entries := range byLibSorted {
+	for key, entries := range byLibSorted {
 		sort.Slice(entries, func(i, j int) bool { return entries[i].RVA < entries[j].RVA })
+		byLibSorted[key] = entries
 	}
 	p.Resolver = &SidecarResolver{ByLib: byLib, ByLibSorted: byLibSorted}
 }

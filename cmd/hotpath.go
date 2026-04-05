@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-
-	"github.com/hypernewbie/vprf/profile"
 )
 
 func runHotpath(args []string, stdout io.Writer, stderr io.Writer) error {
@@ -28,5 +26,3 @@ func runHotpath(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 	return writeRows(stdout, opts.format, []string{"samples", "percent", "path"}, rows, paths)
 }
-
-var _ = profile.HotPath{}

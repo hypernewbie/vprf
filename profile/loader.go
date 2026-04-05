@@ -16,7 +16,6 @@ func Load(path string) (*Profile, error) {
 	}
 	defer file.Close()
 
-	reader := any(file)
 	var dec *json.Decoder
 	if strings.HasSuffix(strings.ToLower(path), ".gz") {
 		gz, err := gzip.NewReader(file)
@@ -26,7 +25,6 @@ func Load(path string) (*Profile, error) {
 		defer gz.Close()
 		dec = json.NewDecoder(gz)
 	} else {
-		_ = reader
 		dec = json.NewDecoder(file)
 	}
 
@@ -37,6 +35,7 @@ func Load(path string) (*Profile, error) {
 	if sidecar, err := loadSidecar(path); err == nil && sidecar != nil {
 		attachSidecarSymbols(&profile, sidecar)
 	}
+	profile.buildFunctionNameIndex()
 	return &profile, nil
 }
 

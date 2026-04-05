@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-
-	"github.com/hypernewbie/vprf/profile"
 )
 
 func runTop(args []string, stdout io.Writer, stderr io.Writer) error {
@@ -37,5 +35,3 @@ func runTop(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 	return writeRows(stdout, opts.format, []string{"rank", "self%", "total%", "function", "module"}, rows, stats)
 }
-
-var _ = profile.FunctionStat{}

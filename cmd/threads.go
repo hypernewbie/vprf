@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-
-	"github.com/hypernewbie/vprf/profile"
 )
 
 func runThreads(args []string, stdout io.Writer, stderr io.Writer) error {
@@ -27,5 +25,3 @@ func runThreads(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 	return writeRows(stdout, opts.format, []string{"tid", "name", "samples", "%total"}, rows, stats)
 }
-
-var _ = profile.ThreadStat{}
