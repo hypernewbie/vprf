@@ -74,7 +74,7 @@ func (p *Profile) ThreadViews() []ThreadView {
 			Name:   thread.Name,
 			PID:    thread.PID,
 			TID:    fmt.Sprint(thread.TID),
-			Thread: thread,
+			Thread: &thread,
 		})
 	}
 	return views
@@ -96,7 +96,7 @@ func (p *Profile) buildFunctionNameIndex() {
 	}
 }
 
-func (p *Profile) MatchFunctions(pattern string, threads []ThreadView) ([]string, error) {
+func (p *Profile) MatchFunctions(pattern string) ([]string, error) {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("invalid regex pattern %q: %w", pattern, err)
@@ -113,7 +113,7 @@ func (p *Profile) MatchFunctions(pattern string, threads []ThreadView) ([]string
 
 func (p *Profile) Summary(threads []ThreadView) Summary {
 	stats := p.TopFunctions(threads)
-	stableSortFunctions(stats)
+	SortFunctionStats(stats, "self")
 	threadStats := p.ThreadStats(threads)
 	hottest := ThreadStat{}
 	if len(threadStats) > 0 {
@@ -178,22 +178,22 @@ func (p *Profile) TopFunctions(threads []ThreadView) []FunctionStat {
 			TotalPercent: percent(c.total, totalSamples),
 		})
 	}
-	stableSortFunctions(stats)
+	SortFunctionStats(stats, "self")
 	return stats
 }
 
-func (p *Profile) CallersOf(function string, threads []ThreadView, limit int) ([]EdgeStat, []string) {
+func (p *Profile) CallersOf(function string, threads []ThreadView, limit int) ([]EdgeStat, []string, error) {
 	return p.edgeStats(function, threads, limit, true)
 }
 
-func (p *Profile) CalleesOf(function string, threads []ThreadView, limit int) ([]EdgeStat, []string) {
+func (p *Profile) CalleesOf(function string, threads []ThreadView, limit int) ([]EdgeStat, []string, error) {
 	return p.edgeStats(function, threads, limit, false)
 }
 
-func (p *Profile) edgeStats(function string, threads []ThreadView, limit int, callers bool) ([]EdgeStat, []string) {
+func (p *Profile) edgeStats(function string, threads []ThreadView, limit int, callers bool) ([]EdgeStat, []string, error) {
 	re, err := regexp.Compile(function)
 	if err != nil {
-		return nil, nil
+		return nil, nil, fmt.Errorf("invalid regex pattern %q: %w", function, err)
 	}
 	totalSamples := totalSamplesForThreads(threads)
 	counts := map[string]*EdgeStat{}
@@ -205,7 +205,7 @@ func (p *Profile) edgeStats(function string, threads []ThreadView, limit int, ca
 		}
 	}
 	if len(matchedFn) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	for _, tv := range threads {
@@ -261,7 +261,7 @@ func (p *Profile) edgeStats(function string, threads []ThreadView, limit int, ca
 	for fn := range matchedFn {
 		matchedFnList = append(matchedFnList, fn)
 	}
-	return stats, matchedFnList
+	return stats, matchedFnList, nil
 }
 
 func (p *Profile) ThreadStats(threads []ThreadView) []ThreadStat {
@@ -430,7 +430,7 @@ type lookupContext struct {
 	resolver      *SidecarResolver
 }
 
-func (p *Profile) lookupContext(thread Thread) lookupContext {
+func (p *Profile) lookupContext(thread *Thread) lookupContext {
 	ctx := lookupContext{
 		stackTable:    p.Shared.StackTable,
 		frameTable:    p.Shared.FrameTable,
@@ -733,7 +733,7 @@ func totalSamplesForThreads(threads []ThreadView) int {
 	return total
 }
 
-func threadSampleCount(thread Thread) int {
+func threadSampleCount(thread *Thread) int {
 	total := 0
 	for i := range thread.Samples.Stack {
 		total += sampleWeight(thread.Samples, i)
@@ -767,14 +767,22 @@ func ensureCounts(counts map[string]*functionCount, name string, module string) 
 	return count
 }
 
-func stableSortFunctions(stats []FunctionStat) {
+func SortFunctionStats(stats []FunctionStat, sortBy string) {
 	sort.SliceStable(stats, func(i, j int) bool {
-		if stats[i].SelfSamples == stats[j].SelfSamples {
-			if stats[i].TotalSamples == stats[j].TotalSamples {
-				return stats[i].Name < stats[j].Name
+		left := stats[i]
+		right := stats[j]
+		if sortBy == "total" {
+			if left.TotalSamples == right.TotalSamples {
+				return left.Name < right.Name
 			}
-			return stats[i].TotalSamples > stats[j].TotalSamples
+			return left.TotalSamples > right.TotalSamples
 		}
-		return stats[i].SelfSamples > stats[j].SelfSamples
+		if left.SelfSamples == right.SelfSamples {
+			if left.TotalSamples == right.TotalSamples {
+				return left.Name < right.Name
+			}
+			return left.TotalSamples > right.TotalSamples
+		}
+		return left.SelfSamples > right.SelfSamples
 	})
 }

@@ -10,7 +10,7 @@ func runSummary(args []string, stdout io.Writer, stderr io.Writer) error {
 	fs := flag.NewFlagSet("summary", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var opts profileOptions
-	addProfileFlags(fs, &opts)
+	addBaseProfileFlags(fs, &opts)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

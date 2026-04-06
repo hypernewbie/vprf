@@ -10,7 +10,7 @@ func runThreads(args []string, stdout io.Writer, stderr io.Writer) error {
 	fs := flag.NewFlagSet("threads", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var opts profileOptions
-	addProfileFlags(fs, &opts)
+	addBaseProfileFlags(fs, &opts)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

@@ -130,7 +130,7 @@ type ThreadView struct {
 	Name   string
 	PID    string
 	TID    string
-	Thread Thread
+	Thread *Thread
 }
 
 type FunctionStat struct {

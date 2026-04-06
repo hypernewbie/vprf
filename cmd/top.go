@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+
+	"github.com/hypernewbie/vprf/profile"
 )
 
 func runTop(args []string, stdout io.Writer, stderr io.Writer) error {
@@ -19,7 +21,7 @@ func runTop(args []string, stdout io.Writer, stderr io.Writer) error {
 		return err
 	}
 	stats := p.TopFunctions(selectedThreads(p, opts.thread))
-	stableSortFuncStats(stats, opts.sortBy)
+	profile.SortFunctionStats(stats, opts.sortBy)
 	if opts.limit > 0 && len(stats) > opts.limit {
 		stats = stats[:opts.limit]
 	}

@@ -10,18 +10,18 @@ import (
 )
 
 func runCallers(args []string, stdout io.Writer, stderr io.Writer) error {
-	return runEdges("callers", args, stdout, stderr, func(p *profile.Profile, threads []profile.ThreadView, function string, limit int) ([]profile.EdgeStat, []string) {
+	return runEdges("callers", args, stdout, stderr, func(p *profile.Profile, threads []profile.ThreadView, function string, limit int) ([]profile.EdgeStat, []string, error) {
 		return p.CallersOf(function, threads, limit)
 	})
 }
 
 func runCallees(args []string, stdout io.Writer, stderr io.Writer) error {
-	return runEdges("callees", args, stdout, stderr, func(p *profile.Profile, threads []profile.ThreadView, function string, limit int) ([]profile.EdgeStat, []string) {
+	return runEdges("callees", args, stdout, stderr, func(p *profile.Profile, threads []profile.ThreadView, function string, limit int) ([]profile.EdgeStat, []string, error) {
 		return p.CalleesOf(function, threads, limit)
 	})
 }
 
-func runEdges(name string, args []string, stdout io.Writer, stderr io.Writer, query func(*profile.Profile, []profile.ThreadView, string, int) ([]profile.EdgeStat, []string)) error {
+func runEdges(name string, args []string, stdout io.Writer, stderr io.Writer, query func(*profile.Profile, []profile.ThreadView, string, int) ([]profile.EdgeStat, []string, error)) error {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var opts profileOptions
@@ -37,7 +37,7 @@ func runEdges(name string, args []string, stdout io.Writer, stderr io.Writer, qu
 		return err
 	}
 
-	matchedFns, err := p.MatchFunctions(opts.function, selectedThreads(p, opts.thread))
+	matchedFns, err := p.MatchFunctions(opts.function)
 	if err != nil {
 		return err
 	}
@@ -48,7 +48,10 @@ func runEdges(name string, args []string, stdout io.Writer, stderr io.Writer, qu
 		fmt.Fprintf(stderr, "note: matched functions: %s\n", strings.Join(matchedFns, ", "))
 	}
 
-	stats, _ := query(p, selectedThreads(p, opts.thread), opts.function, opts.limit)
+	stats, matchedFns, err := query(p, selectedThreads(p, opts.thread), opts.function, opts.limit)
+	if err != nil {
+		return err
+	}
 	rows := make([][]string, 0, len(stats))
 	for _, stat := range stats {
 		rows = append(rows, []string{

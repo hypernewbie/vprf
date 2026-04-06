@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 
 	"github.com/hypernewbie/vprf/output"
@@ -59,7 +58,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "Commands:")
 	for _, cmd := range commands {
-		fmt.Fprintf(w, "  %-8s %s\n", cmd.name, cmd.desc)
+		fmt.Fprintf(w, "  %-10s %s\n", cmd.name, cmd.desc)
 	}
 }
 
@@ -72,11 +71,15 @@ type profileOptions struct {
 	function    string
 }
 
-func addProfileFlags(fs *flag.FlagSet, opts *profileOptions) {
+func addBaseProfileFlags(fs *flag.FlagSet, opts *profileOptions) {
 	fs.StringVar(&opts.profilePath, "profile", "", "Path to samply profile (.json or .json.gz)")
 	fs.StringVar(&opts.profilePath, "p", "", "Path to samply profile (.json or .json.gz)")
 	fs.StringVar(&opts.format, "format", "table", "Output format: table or json")
 	fs.StringVar(&opts.thread, "thread", "", "Filter by thread name or tid")
+}
+
+func addProfileFlags(fs *flag.FlagSet, opts *profileOptions) {
+	addBaseProfileFlags(fs, opts)
 	fs.IntVar(&opts.limit, "limit", 10, "Maximum rows to return")
 	fs.StringVar(&opts.sortBy, "sort", "self", "Sort field: self or total")
 	fs.StringVar(&opts.function, "fn", "", "Regex pattern to match function names")
@@ -118,24 +121,4 @@ func writeRows(stdout io.Writer, format string, headers []string, rows [][]strin
 	default:
 		return fmt.Errorf("unsupported format %q", format)
 	}
-}
-
-func stableSortFuncStats(stats []profile.FunctionStat, sortBy string) {
-	sort.SliceStable(stats, func(i, j int) bool {
-		left := stats[i]
-		right := stats[j]
-		if sortBy == "total" {
-			if left.TotalSamples == right.TotalSamples {
-				return left.Name < right.Name
-			}
-			return left.TotalSamples > right.TotalSamples
-		}
-		if left.SelfSamples == right.SelfSamples {
-			if left.TotalSamples == right.TotalSamples {
-				return left.Name < right.Name
-			}
-			return left.TotalSamples > right.TotalSamples
-		}
-		return left.SelfSamples > right.SelfSamples
-	})
 }

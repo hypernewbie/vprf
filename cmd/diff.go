@@ -6,7 +6,6 @@ import (
 	"io"
 	"sort"
 
-	"github.com/hypernewbie/vprf/output"
 	"github.com/hypernewbie/vprf/profile"
 )
 
@@ -15,6 +14,7 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer) error {
 	fs.SetOutput(stderr)
 	profileA := fs.String("a", "", "First profile (baseline)")
 	profileB := fs.String("b", "", "Second profile (comparison)")
+	format := fs.String("format", "table", "Output format: table or json")
 	limit := fs.Int("limit", 20, "Maximum rows to return")
 	sortBy := fs.String("sort", "delta", "Sort by: delta, self_a, self_b, name")
 	threadA := fs.String("thread-a", "", "Filter threads in profile A")
@@ -66,8 +66,7 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer) error {
 			d.Module,
 		})
 	}
-	output.WriteTable(stdout, []string{"delta_self", "pct_chg", "self_a", "self_b", "delta_total", "pct_chg_total", "function", "module"}, rows)
-	return nil
+	return writeRows(stdout, *format, []string{"delta_self", "pct_chg", "self_a", "self_b", "delta_total", "pct_chg_total", "function", "module"}, rows, diffs)
 }
 
 func diffStatsBySelfA(diffs []profile.DiffStat) []profile.DiffStat {
