@@ -74,7 +74,7 @@ func (p *Profile) ThreadViews() []ThreadView {
 			Name:   thread.Name,
 			PID:    thread.PID,
 			TID:    fmt.Sprint(thread.TID),
-			Thread: &thread,
+			Thread: &p.Threads[idx],
 		})
 	}
 	return views
