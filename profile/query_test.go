@@ -3,6 +3,7 @@ package profile
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -220,5 +221,33 @@ func TestLoadBadPath(t *testing.T) {
 	_, err := Load("/nonexistent/path/to/profile.json")
 	if err == nil {
 		t.Fatalf("expected error for nonexistent path")
+	}
+}
+
+func TestLoadSidecarWarning(t *testing.T) {
+	fixturePath := filepath.Join("..", "tests", "testdata", "fixture.json")
+	fixtureData, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+
+	tempDir := t.TempDir()
+	profilePath := filepath.Join(tempDir, "fixture.json")
+	if err := os.WriteFile(profilePath, fixtureData, 0o644); err != nil {
+		t.Fatalf("write fixture copy: %v", err)
+	}
+	if err := os.WriteFile(profilePath+".syms.json", []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("write malformed sidecar: %v", err)
+	}
+
+	p, err := Load(profilePath)
+	if err != nil {
+		t.Fatalf("load profile with malformed sidecar: %v", err)
+	}
+	if len(p.Warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d: %v", len(p.Warnings), p.Warnings)
+	}
+	if !strings.Contains(strings.ToLower(p.Warnings[0]), "sidecar") {
+		t.Fatalf("expected sidecar warning, got %q", p.Warnings[0])
 	}
 }

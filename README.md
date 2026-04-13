@@ -24,10 +24,16 @@ go build ./...
 ```bash
 ./vprf summary -p profile.json.gz
 ./vprf top -p profile.json.gz --limit 15
+./vprf diff -a baseline.json.gz -b comparison.json.gz
 ./vprf callers -p profile.json.gz --fn innerLoop
 ./vprf callees -p profile.json.gz --fn outer
 ./vprf threads -p profile.json.gz
 ./vprf hotpath -p profile.json.gz
+./vprf collapsed -p profile.json.gz
 ```
 
 Each command also supports `--format json`.
+
+Commands that accept `--fn` treat it as a regular expression pattern, for example `--fn "runtime\\."` or `--fn "^inner"`.
+
+`diff` also supports `-a`, `-b`, `--thread-a`, and `--thread-b` to compare two profiles and optionally scope each side to a different thread filter.

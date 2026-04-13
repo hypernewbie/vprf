@@ -86,3 +86,81 @@ func TestThreadsJsonOutput(t *testing.T) {
 		t.Fatalf("expected 2 threads in JSON output, got %d", len(result))
 	}
 }
+
+func TestTopWithFnFilter(t *testing.T) {
+	profilePath := filepath.Join("..", "tests", "testdata", "fixture.json")
+	var out bytes.Buffer
+	var errBuf bytes.Buffer
+	if err := Execute([]string{"top", "-p", profilePath, "--fn", "^inner", "--format", "json"}, &out, &errBuf); err != nil {
+		t.Fatalf("top --fn failed: %v stderr=%s", err, errBuf.String())
+	}
+	var result []struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		t.Fatalf("output is not valid JSON array: %v\noutput: %s", err, out.String())
+	}
+	if len(result) == 0 {
+		t.Fatalf("expected non-empty filtered results")
+	}
+	foundInner := false
+	for _, item := range result {
+		if item.Name == "innerLoop" {
+			foundInner = true
+		}
+		if item.Name == "outer" || item.Name == "main" {
+			t.Fatalf("unexpected function %q in filtered results: %+v", item.Name, result)
+		}
+	}
+	if !foundInner {
+		t.Fatalf("expected innerLoop in filtered results: %+v", result)
+	}
+}
+
+func TestHotpathWithFnFilter(t *testing.T) {
+	profilePath := filepath.Join("..", "tests", "testdata", "fixture.json")
+	var out bytes.Buffer
+	var errBuf bytes.Buffer
+	if err := Execute([]string{"hotpath", "-p", profilePath, "--fn", "innerLoop", "--format", "json"}, &out, &errBuf); err != nil {
+		t.Fatalf("hotpath --fn failed: %v stderr=%s", err, errBuf.String())
+	}
+	var result []struct {
+		Functions []string `json:"functions"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		t.Fatalf("output is not valid JSON array: %v\noutput: %s", err, out.String())
+	}
+	if len(result) == 0 {
+		t.Fatalf("expected non-empty filtered hotpaths")
+	}
+	foundInner := false
+	for _, item := range result {
+		containsInner := false
+		for _, fn := range item.Functions {
+			if fn == "innerLoop" {
+				containsInner = true
+				foundInner = true
+				break
+			}
+		}
+		if !containsInner {
+			t.Fatalf("returned path without innerLoop: %+v", item.Functions)
+		}
+	}
+	if !foundInner {
+		t.Fatalf("expected at least one path containing innerLoop: %+v", result)
+	}
+}
+
+func TestTopWithInvalidFn(t *testing.T) {
+	profilePath := filepath.Join("..", "tests", "testdata", "fixture.json")
+	var out bytes.Buffer
+	var errBuf bytes.Buffer
+	err := Execute([]string{"top", "-p", profilePath, "--fn", "[invalid"}, &out, &errBuf)
+	if err == nil {
+		t.Fatalf("expected invalid regex error")
+	}
+	if !strings.Contains(err.Error(), "invalid regex pattern") {
+		t.Fatalf("expected invalid regex error, got %v", err)
+	}
+}

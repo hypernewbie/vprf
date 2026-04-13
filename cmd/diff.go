@@ -30,10 +30,12 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("load profile A: %w", err)
 	}
+	printWarnings(pA, stderr)
 	pB, err := profile.Load(*profileB)
 	if err != nil {
 		return fmt.Errorf("load profile B: %w", err)
 	}
+	printWarnings(pB, stderr)
 
 	threadsA := selectedThreads(pA, *threadA)
 	threadsB := selectedThreads(pB, *threadB)

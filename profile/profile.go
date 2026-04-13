@@ -44,6 +44,7 @@ type Profile struct {
 	Threads       []Thread         `json:"threads"`
 	Resolver      *SidecarResolver `json:"-"`
 	FunctionNames map[string]bool  `json:"-"`
+	Warnings      []string         `json:"-"`
 }
 
 type Meta struct {

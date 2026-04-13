@@ -25,7 +25,9 @@ func runEdges(name string, args []string, stdout io.Writer, stderr io.Writer, qu
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var opts profileOptions
-	addProfileFlags(fs, &opts)
+	addBaseProfileFlags(fs, &opts)
+	fs.IntVar(&opts.limit, "limit", 10, "Maximum rows to return")
+	fs.StringVar(&opts.function, "fn", "", "Regex pattern to match function names")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -36,6 +38,7 @@ func runEdges(name string, args []string, stdout io.Writer, stderr io.Writer, qu
 	if err != nil {
 		return err
 	}
+	printWarnings(p, stderr)
 
 	matchedFns, err := p.MatchFunctions(opts.function)
 	if err != nil {
@@ -48,7 +51,7 @@ func runEdges(name string, args []string, stdout io.Writer, stderr io.Writer, qu
 		fmt.Fprintf(stderr, "note: matched functions: %s\n", strings.Join(matchedFns, ", "))
 	}
 
-	stats, matchedFns, err := query(p, selectedThreads(p, opts.thread), opts.function, opts.limit)
+	stats, _, err := query(p, selectedThreads(p, opts.thread), opts.function, opts.limit)
 	if err != nil {
 		return err
 	}

@@ -20,7 +20,28 @@ func runTop(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	printWarnings(p, stderr)
 	stats := p.TopFunctions(selectedThreads(p, opts.thread))
+	if opts.function != "" {
+		matched, err := p.MatchFunctions(opts.function)
+		if err != nil {
+			return err
+		}
+		if len(matched) == 0 {
+			return fmt.Errorf("no functions matching %q found", opts.function)
+		}
+		matchedSet := make(map[string]bool, len(matched))
+		for _, name := range matched {
+			matchedSet[name] = true
+		}
+		filtered := make([]profile.FunctionStat, 0, len(stats))
+		for _, stat := range stats {
+			if matchedSet[stat.Name] {
+				filtered = append(filtered, stat)
+			}
+		}
+		stats = filtered
+	}
 	profile.SortFunctionStats(stats, opts.sortBy)
 	if opts.limit > 0 && len(stats) > opts.limit {
 		stats = stats[:opts.limit]

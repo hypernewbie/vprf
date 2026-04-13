@@ -18,6 +18,7 @@ func runSummary(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	printWarnings(p, stderr)
 	threads := selectedThreads(p, opts.thread)
 	summary := p.Summary(threads)
 	if opts.format == "json" {

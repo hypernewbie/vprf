@@ -32,7 +32,10 @@ func Load(path string) (*Profile, error) {
 	if err := dec.Decode(&profile); err != nil {
 		return nil, fmt.Errorf("decode profile %s: %w", filepath.Base(path), err)
 	}
-	if sidecar, err := loadSidecar(path); err == nil && sidecar != nil {
+	sidecar, err := loadSidecar(path)
+	if err != nil && !os.IsNotExist(err) {
+		profile.Warnings = append(profile.Warnings, fmt.Sprintf("warning: failed to load sidecar symbols: %v", err))
+	} else if sidecar != nil {
 		attachSidecarSymbols(&profile, sidecar)
 	}
 	profile.buildFunctionNameIndex()

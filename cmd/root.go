@@ -96,6 +96,15 @@ func loadProfile(opts profileOptions) (*profile.Profile, error) {
 	return p, nil
 }
 
+func printWarnings(p *profile.Profile, stderr io.Writer) {
+	if p == nil {
+		return
+	}
+	for _, warning := range p.Warnings {
+		fmt.Fprintln(stderr, warning)
+	}
+}
+
 func selectedThreads(p *profile.Profile, threadFilter string) []profile.ThreadView {
 	threads := p.ThreadViews()
 	if threadFilter == "" {

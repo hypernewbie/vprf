@@ -18,6 +18,7 @@ func runThreads(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	printWarnings(p, stderr)
 	stats := p.ThreadStats(selectedThreads(p, opts.thread))
 	rows := make([][]string, 0, len(stats))
 	for _, stat := range stats {

@@ -19,6 +19,7 @@ func runCollapsed(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	printWarnings(p, stderr)
 	stacks := p.CollapsedStacks(selectedThreads(p, opts.thread))
 	if opts.limit > 0 && len(stacks) > opts.limit {
 		stacks = stacks[:opts.limit]
