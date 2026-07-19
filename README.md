@@ -6,7 +6,9 @@ On current `samply` builds, `--unstable-presymbolicate` writes a `.syms.json` si
 
 ## Install
 
-1. Install `samply` from its release page or installer script.
+1. Install `samply` from its release page or installer script. On Windows the
+   released `samply` panics on PDBs containing `Char8` types — see
+   [`WINDOWS.md`](./WINDOWS.md) for the one-line patch and build steps.
 2. Build this tool:
 
 ```bash

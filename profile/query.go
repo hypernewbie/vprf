@@ -618,9 +618,14 @@ func lookupSidecarFunctionName(strings []string, symbol SidecarSymbol) string {
 	return ""
 }
 
+// Strip common Windows module extensions so sidecar map keys (built from
+// `lib.DebugName`, e.g. "ntdll.pdb") match profile module names ("ntdll.dll").
 func normalizeLibName(name string) string {
-	if strings.HasSuffix(strings.ToLower(name), ".pdb") {
-		return strings.TrimSuffix(name, ".pdb")
+	lower := strings.ToLower(name)
+	for _, ext := range []string{".pdb", ".dll", ".exe", ".sys", ".ocx"} {
+		if strings.HasSuffix(lower, ext) {
+			return strings.TrimSuffix(name, ext)
+		}
 	}
 	return name
 }
